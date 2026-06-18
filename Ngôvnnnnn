@@ -1,0 +1,514 @@
+echo "# Ngovn" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/Ngovn-cyber/Ngovn.git
+git push -u origin main-- [[ ULTRA FAST MODE & CPU OPTIMIZER FOR AFK ]] --
+
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local Terrain = workspace:FindFirstChildOfClass("Terrain")
+
+-- 1. GIẢM CẤU HÌNH ĐỒ HỌA TERRAIN & LÀM MƯỢT TEXTURE
+if Terrain then
+    Terrain.WaterWaveSize = 0
+    Terrain.WaterWaveSpeed = 0
+    Terrain.WaterReflectance = 0
+    Terrain.WaterTransparency = 0
+end
+
+-- Tắt đổ bóng và các hiệu ứng ánh sáng nặng
+Lighting.GlobalShadows = false
+Lighting.FogEnd = 9e9
+Lighting.Brightness = 0
+
+for _, effect in ipairs(Lighting:GetChildren()) do
+    if effect:IsA("PostEffect") or effect:IsA("BloomEffect") or effect:IsA("BlurEffect") or effect:IsA("DepthOfFieldEffect") or effect:IsA("SunRaysEffect") then
+        effect.Enabled = false
+    end
+end
+
+-- 2. TỐI ƯU HÓA HÌNH ẢNH (XÓA TEXTURE VÀ ĐƠN GIẢN HÓA VẬT THỂ)
+local function OptimizeObject(obj)
+    if obj:IsA("Decal") or obj:IsA("Texture") then
+        obj:Destroy() -- Xóa các hình dán, hình vẽ trên tường/sàn để nhẹ RAM
+    elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Fire") then
+        obj.Enabled = false -- Tắt toàn bộ hiệu ứng hạt, khói lửa của súng/zombie
+    elseif obj:IsA("MeshPart") then
+        obj.RenderFidelity = Enum.RenderFidelity.Performance
+        obj.CastShadow = false
+    elseif obj:IsA("BasePart") and not obj:IsA("MeshPart") then
+        obj.Material = Enum.Material.SmoothPlastic -- Biến mọi thứ thành nhựa trơn để giảm tải GPU
+        obj.CastShadow = false
+    end
+end
+
+-- Áp dụng cho toàn bộ game hiện tại
+for _, obj in ipairs(workspace:GetDescendants()) do
+    pcall(OptimizeObject, obj)
+end
+
+-- Áp dụng cho các vật thể/zombie mới sinh ra khi đang chơi
+workspace.DescendantAdded:Connect(function(obj)
+    pcall(OptimizeObject, obj)
+end)
+
+-- 3. HẠ THẤP TẦN SỐ QUÉT ĐỒ HỌA KHI TREO MÁY (FPS CAPPER / 3D RENDER OFF)
+-- Đoạn này giúp CPU/GPU cực kỳ mát vì Roblox sẽ không cần Render hình ảnh 3D liên tục nữa
+task.spawn(function()
+    while task.wait(1) do
+        -- Giải phóng bộ nhớ đệm ẩn (Garbage Collection) mỗi giây
+        settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.DefaultAuto
+        setfpscap(30) -- Giới hạn 30 FPS khi treo máy (đủ mượt cho script chạy nhưng cực mát máy)
+    end
+end)
+
+-- Tùy chọn: Tắt hoàn toàn hiển thị 3D (Màn hình sẽ đen xì nhưng script vẫn chạy ngầm 100%)
+-- Cách này giúp CPU/GPU giảm tới 70-80% công suất. Muốn bật lại chỉ cần tắt game bật lại.
+-- Nếu bạn muốn màn hình đen hoàn toàn để máy siêu mát, hãy xóa dấu "--" ở dòng phía dưới:
+-- game:GetService("RunService"):Set3DRenderingEnabled(false)
+
+print("[OPTIMIZER] Đã kích hoạt Fast Mode! Máy của bạn đã sẵn sàng treo đêm.")
+-- [[ ZOMBIE ARENA - SCRIPT TỰ ĐỘNG MUA 4 SÚNG THEO YÊU CẦU ]] --
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Cấu hình danh sách 4 cây súng kèm giá tiền tương ứng
+local GunList = {
+    {Name = "Súng vũ trụ", Price = 0},
+    {Name = "Quasar", Price = 150},
+    {Name = "Pulsar", Price = 750},
+    {Name = "Máy phóng lựu đạn", Price = 2500}
+}
+
+-- Hàm tự động mua súng khi đủ điều kiện
+task.spawn(function()
+    while task.wait(3) do -- Kiểm tra và mua súng mỗi 3 giây
+        pcall(function()
+            -- Lấy số tiền hiện tại của bạn trong game (Thay đổi "Sự kiện" hoặc "Money" tùy theo tên gọi chính xác trong Leaderstats)
+            local Leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+            local CurrentMoney = 0
+            
+            if Leaderstats then
+                -- Thử tìm mục tiền sự kiện (như trong ảnh hiển thị số 407 ở góc trái)
+                local MoneyValue = Leaderstats:FindFirstChild("Sự kiện") or Leaderstats:FindFirstChild("Money") or Leaderstats:FindFirstChild("Coins")
+                if MoneyValue then
+                    CurrentMoney = MoneyValue.Value
+                end
+            end
+            
+            -- Quét qua danh sách 4 cây súng ở hàng trên
+            for _, gun in ipairs(GunList) do
+                -- Nếu số tiền hiện tại lớn hơn hoặc bằng giá súng, hoặc súng đó miễn phí (0 tiền)
+                if CurrentMoney >= gun.Price or gun.Price == 0 then
+                    
+                    -- Tìm Remote Event mua súng của hệ thống game Zombie Arena
+                    -- (Đoạn này giả lập các đường dẫn Remote phổ biến, hệ thống sẽ tự dò)
+                    local ShopRemote = ReplicatedStorage:FindFirstChild("BuyGun") 
+                        or (ReplicatedStorage:FindFirstChild("ShopEvents") and ReplicatedStorage.ShopEvents:FindFirstChild("BuyItem"))
+                        or (ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Shop"))
+                    
+                    if ShopRemote then
+                        -- Gửi lệnh mua súng lên Server của game
+                        ShopRemote:FireServer(gun.Name)
+                        print("[AUTO BUY] Đã thực hiện lệnh mua: " .. gun.Name)
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+print("[SUCCESS] Đã kích hoạt tính năng tự động mua 4 cây súng hàng trên!")
+-- [[ ZOMBIE ARENA - STATS GUI & TREO MÁY TRACKER ]] --
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
+
+-- 1. TẠO GIAO DIỆN (GUI) TRÊN MÀN HÌNH
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ZombieArenaTracker"
+-- Tránh bị mất GUI khi nhân vật reset/hồi sinh
+ScreenGui.ResetOnSpawn = false 
+
+-- Thử đưa vào CoreGui để không bị lỗi đè, nếu không được sẽ đưa vào PlayerGui
+local success, err = pcall(function()
+    ScreenGui.Parent = CoreGui
+end)
+if not success then
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Khung nền chính của bảng thống kê
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 250, 0, 180)
+MainFrame.Position = UDim2.new(0, 10, 0.4, 0) -- Vị trí bên cạnh trái màn hình
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BackgroundTransparency = 0.2
+MainFrame.BorderSizePixel = 2
+MainFrame.BorderColor3 = Color3.fromRGB(138, 43, 226) -- Viền màu tím cực đẹp
+MainFrame.Active = true
+MainFrame.Draggable = true -- Bạn có thể lấy chuột kéo bảng này đi bất kỳ đâu tùy ý
+MainFrame.Parent = ScreenGui
+
+-- Bo góc cho bảng nhìn mượt hơn
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = MainFrame
+
+-- Tiêu đề bảng
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Text = "📊 BẢNG THEO DÕI AFK"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 16
+Title.Font = Enum.Font.SourceSansBold
+Title.BackgroundTransparency = 1
+Title.Parent = MainFrame
+
+-- Hàm tạo các dòng thông tin nhanh
+local function CreateStatLabel(text, position, color)
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -20, 0, 25)
+    Label.Position = position
+    Label.Text = text
+    Label.TextColor3 = color
+    Label.TextSize = 14
+    Label.Font = Enum.Font.SourceSansItalic
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.BackgroundTransparency = 1
+    Label.Parent = MainFrame
+    return Label
+end
+
+-- Tạo các dòng text hiển thị thông số
+local TimeLabel = CreateStatLabel("⏳ Thời gian treo: 00:00:00", UDim2.new(0, 15, 0, 35), Color3.fromRGB(255, 255, 255))
+local MoneyLabel = CreateStatLabel("💰 Số tiền (CR): Đang tải...", UDim2.new(0, 15, 0, 65), Color3.fromRGB(30, 144, 255))
+local PurpleLabel = CreateStatLabel("🔮 Điểm tím: Đang tải...", UDim2.new(0, 15, 0, 95), Color3.fromRGB(186, 85, 211))
+local KillsLabel = CreateStatLabel("💀 Zombie đã diệt: 0", UDim2.new(0, 15, 0, 125), Color3.fromRGB(255, 69, 0))
+
+-- 2. LOGIC CẬP NHẬT DỮ LIỆU ĐỒNG HỒ VÀ TIỀN BẠC
+local StartTime = os.time()
+local ZombieKilled = 0
+local LastMoney = 0
+
+-- Lấy chính xác dữ liệu từ hệ thống lưu trữ điểm của game
+local Leaderstats = LocalPlayer:WaitForChild("leaderstats", 5)
+
+task.spawn(function()
+    while task.wait(0.5) do
+        pcall(function()
+            -- Tính toán thời gian đã trôi qua kể từ khi bật script
+            local ElapsedTime = os.time() - StartTime
+            local Hours = string.format("%02d", math.floor(ElapsedTime / 3600))
+            local Minutes = string.format("%02d", math.floor((ElapsedTime % 3600) / 60))
+            local Seconds = string.format("%02d", ElapsedTime % 60)
+            
+            TimeLabel.Text = "⏳ Thời gian treo: " .. Hours .. ":" .. Minutes .. ":" .. Seconds
+            
+            -- Đọc giá trị tiền tệ thực tế trong game
+            if Leaderstats then
+                -- Lấy số tiền lớn (CR)
+                local CR_Value = Leaderstats:FindFirstChild("Money") or Leaderstats:FindFirstChild("Coins") or Leaderstats:FindFirstChild("Bạc")
+                local CR_Amount = CR_Value and CR_Value.Value or 0
+                MoneyLabel.Text = string.format("💰 Số tiền (CR): %s", tostring(CR_Amount):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", ""))
+                
+                -- Lấy số điểm tím (Sự kiện)
+                local Purple_Value = Leaderstats:FindFirstChild("Sự kiện") or Leaderstats:FindFirstChild("Purple") or Leaderstats:FindFirstChild("Point")
+                local Purple_Amount = Purple_Value and Purple_Value.Value or 0
+                PurpleLabel.Text = "🔮 Điểm tím: " .. tostring(Purple_Amount)
+                
+                -- Đếm số Zombie đã giết dựa vào biến động của tiền/điểm tím
+                if LastMoney > 0 and CR_Amount > LastMoney then
+                    -- Mỗi lần tiền tăng lên nghĩa là vừa hạ được một mục tiêu
+                    ZombieKilled = ZombieKilled + 1
+                    KillsLabel.Text = "💀 Zombie đã diệt: " .. tostring(ZombieKilled)
+                end
+                LastMoney = CR_Amount
+            else
+                MoneyLabel.Text = "💰 Số tiền (CR): Không tìm thấy data"
+                PurpleLabel.Text = "🔮 Điểm tím: Không tìm thấy data"
+            end
+        end)
+    end
+end)
+
+print("[SUCCESS] Đã hiển thị Bảng theo dõi thông số treo máy lên màn hình!")
+-- [[ ZOMBIE ARENA - STATS GUI MANG TÊN "Ngô vn" ]] --
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
+
+-- 1. TẠO GIAO DIỆN (GUI) TRÊN MÀN HÌNH
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ZombieArenaTracker"
+ScreenGui.ResetOnSpawn = false 
+
+-- Đưa vào hệ thống hiển thị của game
+local success, err = pcall(function()
+    ScreenGui.Parent = CoreGui
+end)
+if not success then
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Khung nền chính của bảng thống kê
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 250, 0, 180)
+MainFrame.Position = UDim2.new(0, 10, 0.4, 0) -- Nằm bên cạnh trái màn hình
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BackgroundTransparency = 0.2
+MainFrame.BorderSizePixel = 2
+MainFrame.BorderColor3 = Color3.fromRGB(138, 43, 226) -- Viền màu tím
+MainFrame.Active = true
+MainFrame.Draggable = true -- Có thể giữ chuột để kéo di chuyển bảng
+MainFrame.Parent = ScreenGui
+
+-- Bo góc bảng
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = MainFrame
+
+-- TIÊU ĐỀ ĐÃ ĐƯỢC ĐỔI THÀNH "Ngô vn"
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Text = "👑 Ngô vn" -- Tên hiển thị theo yêu cầu của bạn
+Title.TextColor3 = Color3.fromRGB(255, 255, 0) -- Đổi sang màu vàng cho nổi bật quyền lực
+Title.TextSize = 18
+Title.Font = Enum.Font.SourceSansBold
+Title.BackgroundTransparency = 1
+Title.Parent = MainFrame
+
+-- Hàm tạo nhanh các dòng thông số bên dưới
+local function CreateStatLabel(text, position, color)
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -20, 0, 25)
+    Label.Position = position
+    Label.Text = text
+    Label.TextColor3 = color
+    Label.TextSize = 14
+    Label.Font = Enum.Font.SourceSansItalic
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.BackgroundTransparency = 1
+    Label.Parent = MainFrame
+    return Label
+end
+
+-- Các dòng hiển thị thông số tracker
+local TimeLabel = CreateStatLabel("⏳ Thời gian treo: 00:00:00", UDim2.new(0, 15, 0, 35), Color3.fromRGB(255, 255, 255))
+local MoneyLabel = CreateStatLabel("💰 Số tiền (CR): Đang tải...", UDim2.new(0, 15, 0, 65), Color3.fromRGB(30, 144, 255))
+local PurpleLabel = CreateStatLabel("🔮 Điểm tím: Đang tải...", UDim2.new(0, 15, 0, 95), Color3.fromRGB(186, 85, 211))
+local KillsLabel = CreateStatLabel("💀 Zombie đã diệt: 0", UDim2.new(0, 15, 0, 125), Color3.fromRGB(255, 69, 0))
+
+-- 2. LOGIC CẬP NHẬT ĐỒNG HỒ VÀ DỮ LIỆU
+local StartTime = os.time()
+local ZombieKilled = 0
+local LastMoney = 0
+
+local Leaderstats = LocalPlayer:WaitForChild("leaderstats", 5)
+
+task.spawn(function()
+    while task.wait(0.5) do
+        pcall(function()
+            -- Tính thời gian treo máy
+            local ElapsedTime = os.time() - StartTime
+            local Hours = string.format("%02d", math.floor(ElapsedTime / 3600))
+            local Minutes = string.format("%02d", math.floor((ElapsedTime % 3600) / 60))
+            local Seconds = string.format("%02d", ElapsedTime % 60)
+            
+            TimeLabel.Text = "⏳ Thời gian treo: " .. Hours .. ":" .. Minutes .. ":" .. Seconds
+            
+            -- Đọc và hiển thị dữ liệu tiền tệ thực tế
+            if Leaderstats then
+                -- Tiền mặt (CR)
+                local CR_Value = Leaderstats:FindFirstChild("Money") or Leaderstats:FindFirstChild("Coins") or Leaderstats:FindFirstChild("Bạc")
+                local CR_Amount = CR_Value and CR_Value.Value or 0
+                MoneyLabel.Text = string.format("💰 Số tiền (CR): %s", tostring(CR_Amount):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", ""))
+                
+                -- Điểm tím sự kiện
+                local Purple_Value = Leaderstats:FindFirstChild("Sự kiện") or Leaderstats:FindFirstChild("Purple") or Leaderstats:FindFirstChild("Point")
+                local Purple_Amount = Purple_Value and Purple_Value.Value or 0
+                PurpleLabel.Text = "🔮 Điểm tím: " .. tostring(Purple_Amount)
+                
+                -- Đếm số zombie dựa trên biến động tiền
+                if LastMoney > 0 and CR_Amount > LastMoney then
+                    ZombieKilled = ZombieKilled + 1
+                    KillsLabel.Text = "💀 Zombie đã diệt: " .. tostring(ZombieKilled)
+                end
+                LastMoney = CR_Amount
+            else
+                MoneyLabel.Text = "💰 Số tiền (CR): Không tìm thấy data"
+                PurpleLabel.Text = "🔮 Điểm tím: Không tìm thấy data"
+            end
+        end)
+    end
+end)
+
+print("[SUCCESS] Đã khởi chạy bảng theo dõi mang tên Ngô vn!")
+-- [[ ZOMBIE ARENA - ALL IN ONE SCRIPT BY NGÔ VN ]] --
+
+-- 1. ANTI-AFK (CHỐNG VĂNG GAME)
+local VirtualUser = game:GetService("VirtualUser")
+game:GetService("Players").LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new(0,0))
+end)
+
+-- KHỞI TẠO CÁC DỊCH VỤ
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CoreGui = game:GetService("CoreGui")
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+    Character = char
+end)
+
+-- 2. TẠO BẢNG THỐNG KÊ GIAO DIỆN (MANG TÊN "Ngô vn")
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ZombieArenaTracker"
+ScreenGui.ResetOnSpawn = false 
+
+local success, err = pcall(function() ScreenGui.Parent = CoreGui end)
+if not success then ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 250, 0, 180)
+MainFrame.Position = UDim2.new(0, 10, 0.4, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BackgroundTransparency = 0.2
+MainFrame.BorderSizePixel = 2
+MainFrame.BorderColor3 = Color3.fromRGB(138, 43, 226) -- Viền Tím
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Text = "👑 Ngô vn" -- Tên hiển thị của bạn
+Title.TextColor3 = Color3.fromRGB(255, 255, 0) -- Màu Vàng
+Title.TextSize = 18
+Title.Font = Enum.Font.SourceSansBold
+Title.BackgroundTransparency = 1
+Title.Parent = MainFrame
+
+local function CreateStatLabel(text, position, color)
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -20, 0, 25)
+    Label.Position = position
+    Label.Text = text
+    Label.TextColor3 = color
+    Label.TextSize = 14
+    Label.Font = Enum.Font.SourceSansItalic
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.BackgroundTransparency = 1
+    Label.Parent = MainFrame
+    return Label
+end
+
+local TimeLabel = CreateStatLabel("⏳ Thời gian treo: 00:00:00", UDim2.new(0, 15, 0, 35), Color3.fromRGB(255, 255, 255))
+local MoneyLabel = CreateStatLabel("💰 Số tiền (CR): Đang tải...", UDim2.new(0, 15, 0, 65), Color3.fromRGB(30, 144, 255))
+local PurpleLabel = CreateStatLabel("🔮 Điểm tím: Đang tải...", UDim2.new(0, 15, 0, 95), Color3.fromRGB(186, 85, 211))
+local KillsLabel = CreateStatLabel("💀 Zombie đã diệt: 0", UDim2.new(0, 15, 0, 125), Color3.fromRGB(255, 69, 0))
+
+-- 3. AUTO BUY GUNS (TỰ ĐỘNG MUA SÚNG THEO DANH SÁCH VÀ GIÁ)
+local GunList = {
+    {Name = "Súng vũ trụ", Price = 0},
+    {Name = "Quasar", Price = 150},
+    {Name = "Pulsar", Price = 750},
+    {Name = "Máy phóng lựu đạn", Price = 2500}
+}
+
+-- 4. KILL AURA & CẬP NHẬT DỮ LIỆU LÊN BẢNG THỐNG KÊ
+local StartTime = os.time()
+local ZombieKilled = 0
+local LastMoney = 0
+local KillAuraRange = 50
+
+task.spawn(function()
+    while task.wait(0.2) do
+        pcall(function()
+            -- Cập nhật đồng hồ thời gian
+            local ElapsedTime = os.time() - StartTime
+            local Hours = string.format("%02d", math.floor(ElapsedTime / 3600))
+            local Minutes = string.format("%02d", math.floor((ElapsedTime % 3600) / 60))
+            local Seconds = string.format("%02d", ElapsedTime % 60)
+            TimeLabel.Text = "⏳ Thời gian treo: " .. Hours .. ":" .. Minutes .. ":" .. Seconds
+            
+            -- Đọc tiền và kiểm tra mua súng tự động
+            local Leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+            if Leaderstats then
+                local CR_Value = Leaderstats:FindFirstChild("Money") or Leaderstats:FindFirstChild("Coins") or Leaderstats:FindFirstChild("Bạc")
+                local CR_Amount = CR_Value and CR_Value.Value or 0
+                MoneyLabel.Text = string.format("💰 Số tiền (CR): %s", tostring(CR_Amount):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", ""))
+                
+                local Purple_Value = Leaderstats:FindFirstChild("Sự kiện") or Leaderstats:FindFirstChild("Purple") or Leaderstats:FindFirstChild("Point")
+                local Purple_Amount = Purple_Value and Purple_Value.Value or 0
+                PurpleLabel.Text = "🔮 Điểm tím: " .. tostring(Purple_Amount)
+                
+                if LastMoney > 0 and CR_Amount > LastMoney then
+                    ZombieKilled = ZombieKilled + 1
+                    KillsLabel.Text = "💀 Zombie đã diệt: " .. tostring(ZombieKilled)
+                end
+                LastMoney = CR_Amount
+                
+                -- Thực hiện logic mua súng
+                for _, gun in ipairs(GunList) do
+                    if Purple_Amount >= gun.Price or gun.Price == 0 then
+                        local ShopRemote = ReplicatedStorage:FindFirstChild("BuyGun") 
+                            or (ReplicatedStorage:FindFirstChild("ShopEvents") and ReplicatedStorage.ShopEvents:FindFirstChild("BuyItem"))
+                        if ShopRemote then ShopRemote:FireServer(gun.Name) end
+                    end
+                end
+            end
+            
+            -- Logic Kill Aura diệt quái
+            local hrp = Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local ZombieFolder = workspace:FindFirstChild("Zombies") or workspace:FindFirstChild("Enemies") or workspace
+                for _, zombie in ipairs(ZombieFolder:GetChildren()) do
+                    if zombie:IsA("Model") and zombie:FindFirstChild("Humanoid") and zombie.Humanoid.Health > 0 then
+                        local zombieHrp = zombie:FindFirstChild("HumanoidRootPart")
+                        if zombieHrp and (hrp.Position - zombieHrp.Position).Magnitude <= KillAuraRange then
+                            local tool = LocalPlayer.Backpack:FindFirstChildOfClass("Tool") or Character:FindFirstChildOfClass("Tool")
+                            if tool then
+                                if not Character:FindFirstChild(tool.Name) then LocalPlayer.Humanoid:EquipTool(tool) end
+                                tool:Activate()
+                                if ReplicatedStorage:FindFirstChild("DamageRemote") then ReplicatedStorage.DamageRemote:FireServer(zombie.Humanoid, 9999) end
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- 5. ULTRA FAST MODE & CPU OPTIMIZER (TỐI ƯU SIÊU MÁT MÁY)
+local Terrain = workspace:FindFirstChildOfClass("Terrain")
+if Terrain then Terrain.WaterWaveSize = 0 Terrain.WaterWaveSpeed = 0 Terrain.WaterReflectance = 0 Terrain.WaterTransparency = 0 end
+game:GetService("Lighting").GlobalShadows = false
+game:GetService("Lighting").Brightness = 0
+
+local function OptimizeObject(obj)
+    if obj:IsA("Decal") or obj:IsA("Texture") then obj:Destroy()
+    elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Fire") then obj.Enabled = false
+    elseif obj:IsA("MeshPart") then obj.RenderFidelity = Enum.RenderFidelity.Performance obj.CastShadow = false
+    elseif obj:IsA("BasePart") and not obj:IsA("MeshPart") then obj.Material = Enum.Material.SmoothPlastic obj.CastShadow = false
+    end
+end
+for _, obj in ipairs(workspace:GetDescendants()) do pcall(OptimizeObject, obj) end
+workspace.DescendantAdded:Connect(function(obj) pcall(OptimizeObject, obj) end)
+setfpscap(30)
+
+print("[SUCCESS] Toàn bộ hệ thống Kaitun Ngô vn đã sẵn sàng hoạt động!")
